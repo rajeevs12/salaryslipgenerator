@@ -26,5 +26,9 @@ namespace GenPayslip.Controllers
             IPaySlip p = _paySlip.CalculatePay(emp);
             return Ok(p);
         }
+        public void test()
+        {
+
+        }
     }
 }
