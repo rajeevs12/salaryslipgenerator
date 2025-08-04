@@ -1,0 +1,75 @@
+using Newtonsoft.Json.Linq;
+using System;
+using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Web.Services.Description;
+using System.Xml.Linq;
+using System.IO;
+
+public class WsdlSoapBuilder
+{
+    private readonly string _wsdlSource;
+    private ServiceDescription _serviceDescription;
+    private string _targetNamespace;
+
+    public WsdlSoapBuilder(string wsdlSource)
+    {
+        _wsdlSource = wsdlSource;
+    }
+
+    public async Task<string> BuildSoapEnvelopeAsync(string operationName, string json)
+    {
+        await LoadWsdlAsync();
+
+        JObject data = JObject.Parse(json);
+
+        var portType = _serviceDescription.PortTypes[0];
+        var operation = portType.Operations.Cast<Operation>().FirstOrDefault(op => op.Name == operationName)
+            ?? throw new Exception($"Operation '{operationName}' not found in WSDL.");
+
+        var inputMessage = _serviceDescription.Messages[operation.Messages.Input.Message.Name];
+
+        XNamespace soapenv = "http://schemas.xmlsoap.org/soap/envelope/";
+        XNamespace ns = _targetNamespace;
+
+        var body = new XElement(soapenv + "Body");
+        var methodElem = new XElement(ns + operationName);
+
+        foreach (MessagePart part in inputMessage.Parts)
+        {
+            string name = part.Name;
+            string value = data[name]?.ToString();
+
+            methodElem.Add(new XElement(ns + name, value ?? ""));
+        }
+
+        body.Add(methodElem);
+
+        var envelope = new XElement(soapenv + "Envelope",
+            new XAttribute(XNamespace.Xmlns + "soapenv", soapenv),
+            new XAttribute(XNamespace.Xmlns + "ns", ns),
+            new XElement(soapenv + "Header"),
+            body
+        );
+
+        return envelope.ToString();
+    }
+
+    private async Task LoadWsdlAsync()
+    {
+        if (_wsdlSource.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            using var client = new HttpClient();
+            var stream = await client.GetStreamAsync(_wsdlSource);
+            _serviceDescription = ServiceDescription.Read(stream);
+        }
+        else
+        {
+            using var file = File.OpenRead(_wsdlSource);
+            _serviceDescription = ServiceDescription.Read(file);
+        }
+
+        _targetNamespace = _serviceDescription.TargetNamespace;
+    }
+}
