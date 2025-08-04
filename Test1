@@ -1,0 +1,23 @@
+using Newtonsoft.Json.Linq;
+using System;
+using System.Threading.Tasks;
+
+class Program
+{
+    static async Task Main(string[] args)
+    {
+        string wsdlUrl = "https://www.example.com/service?wsdl"; // or local path
+        string operationName = "Login";
+
+        string jsonInput = @"{
+            ""username"": ""john"",
+            ""password"": ""pass123""
+        }";
+
+        var soapBuilder = new WsdlSoapBuilder(wsdlUrl);
+        string soapXml = await soapBuilder.BuildSoapEnvelopeAsync(operationName, jsonInput);
+
+        Console.WriteLine("Generated SOAP XML:");
+        Console.WriteLine(soapXml);
+    }
+}
